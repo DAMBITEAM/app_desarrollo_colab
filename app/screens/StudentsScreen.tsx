@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,76 +12,48 @@ import {
 import tw from 'twrnc';
 import GlobalActionButton from '../../components/GlobalActionButton';
 import { NavigationProp } from '@react-navigation/native';
+import { studentServices } from '../services/api';
+import { Student } from '../types';
 
 const StudentsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => {
-  const [students, setStudents] = useState([
-    {
-      id: '1',
-      matricula: '73071',
-      name: 'Alejandro',
-      apellidoPaterno: 'Díaz',
-      apellidoMaterno: 'B',
-      correo: 'alejandro.diaz@example.com',
-    },
-    {
-      id: '2',
-      matricula: '73072',
-      name: 'María',
-      apellidoPaterno: 'López',
-      apellidoMaterno: 'C',
-      correo: 'maria.lopez@example.com',
-    },
-    {
-      id: '3',
-      matricula: '73073',
-      name: 'Carlos',
-      apellidoPaterno: 'Pérez',
-      apellidoMaterno: 'D',
-      correo: 'carlos.perez@example.com',
-    },
-  ]);
+  const [students, setStudents] = useState<Student[]>([]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>({
     matricula: '',
-    name: '',
-    apellidoPaterno: '',
-    apellidoMaterno: '',
-    correo: '',
+    nombre: '',
+    apellido: '',
+    email: '',
   });
 
-  const handleSaveStudent = () => {
-    const { matricula, name, apellidoPaterno, apellidoMaterno, correo } =
-      selectedStudent;
+  useEffect(() => {
+    loadStudents();
+  }, []);
 
-    if (!matricula || !name || !apellidoPaterno || !apellidoMaterno || !correo) {
-      Alert.alert('Error', 'Por favor completa todos los campos.');
-      return;
+  const loadStudents = async () => {
+    try {
+      const data = await studentServices.getAll();
+      setStudents(data);
+    } catch (error) {
+      console.error('Error loading students:', error);
+      Alert.alert('Error', 'No se pudieron cargar los estudiantes');
     }
+  };
 
-    if (editMode) {
-      setStudents((prev) =>
-        prev.map((student) =>
-          student.id === selectedStudent.id ? selectedStudent : student
-        )
-      );
-    } else {
-      setStudents((prev) => [
-        ...prev,
-        { id: (prev.length + 1).toString(), ...selectedStudent },
-      ]);
+  const handleSaveStudent = async () => {
+    try {
+      if (editMode) {
+        await studentServices.update(selectedStudent.id, selectedStudent);
+      } else {
+        await studentServices.create(selectedStudent);
+      }
+      loadStudents();
+      setModalVisible(false);
+    } catch (error) {
+      console.error('Error saving student:', error);
+      Alert.alert('Error', 'No se pudo guardar el estudiante');
     }
-
-    setSelectedStudent({
-      matricula: '',
-      name: '',
-      apellidoPaterno: '',
-      apellidoMaterno: '',
-      correo: '',
-    });
-    setModalVisible(false);
-    setEditMode(false);
   };
 
   return (
@@ -101,12 +73,12 @@ const StudentsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => 
       <View style={tw`bg-gray-200 rounded-lg p-4 shadow-md`}>
         <FlatList
           data={students}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id || item.matricula}
           renderItem={({ item }) => (
             <View
               style={tw`flex-row items-center justify-between bg-gray-100 rounded-lg p-3 mb-2`}
             >
-              <Text style={tw`text-base`}>{`${item.matricula} - ${item.name} ${item.apellidoPaterno} ${item.apellidoMaterno}`}</Text>
+              <Text style={tw`text-base`}>{`${item.matricula} - ${item.nombre} ${item.apellido} ${item.email}`}</Text>
               <View style={tw`flex-row`}>
                 <TouchableOpacity
                   style={tw`bg-blue-700 rounded-lg px-3 py-1 mr-2`}
@@ -138,10 +110,9 @@ const StudentsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => 
         onPress={() => {
           setSelectedStudent({
             matricula: '',
-            name: '',
-            apellidoPaterno: '',
-            apellidoMaterno: '',
-            correo: '',
+            nombre: '',
+            apellido: '',
+            email: '',
           });
           setEditMode(false);
           setModalVisible(true);
@@ -162,7 +133,7 @@ const StudentsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => 
             <Text style={tw`text-xl font-bold mb-4`}>
               {editMode ? 'Editar Alumno' : 'Añadir Alumno'}
             </Text>
-            {['matricula', 'name', 'apellidoPaterno', 'apellidoMaterno', 'correo'].map(
+            {['matricula', 'nombre', 'apellido', 'email'].map(
               (field, index) => (
                 <View key={index}>
                   <Text style={tw`text-xl mb-2 capitalize`}>{field}</Text>

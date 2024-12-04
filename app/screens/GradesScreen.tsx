@@ -1,79 +1,111 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   FlatList,
+  TouchableOpacity,
   Modal,
+  TextInput,
   Alert,
-  Image
+  Image,
 } from 'react-native';
+import { gradeServices, studentServices, subjectServices } from '../services/api';
+import { Grade, Student, Subject } from '../types';
+import { Picker } from '@react-native-picker/picker';
 import tw from 'twrnc';
 import GlobalActionButton from '../../components/GlobalActionButton';
 import { NavigationProp } from '@react-navigation/native';
 
-const GradesScreen = ({ navigation }: { navigation: NavigationProp<any> }) => {
-  const [grades, setGrades] = useState([
-    {
-      id: '1',
-      student: 'Alejandro Díaz Becerra',
-      subject: 'Desarrollo Colaborativo',
-      absences: 6,
-      grade: 10,
-    },
-    {
-      id: '2',
-      student: 'Alejandro Díaz Becerra',
-      subject: 'Minería de Datos',
-      absences: 0,
-      grade: 10,
-    },
-    {
-      id: '3',
-      student: 'Alejandro Díaz Becerra',
-      subject: 'Desarrollo de Negocios',
-      absences: 2,
-      grade: 10,
-    },
-  ]);
 
+export default function GradesScreen({ navigation }: { navigation: NavigationProp<any> }) {
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [selectedGrade, setSelectedGrade] = useState<any>({
-    student: '',
-    subject: '',
-    absences: '',
-    grade: '',
+  const [selectedGrade, setSelectedGrade] = useState<Grade>({
+    alumno_id: '',
+    materia_id: '',
+    calificacion: 0,
   });
 
-  const handleSaveGrade = () => {
-    if (!selectedGrade.student || !selectedGrade.subject || !selectedGrade.absences || !selectedGrade.grade) {
-      Alert.alert('Error', 'Por favor completa todos los campos.');
-      return;
-    }
+  useEffect(() => {
+    loadData();
+  }, [selectedStudent]);
 
-    if (editMode) {
-      setGrades((prev) =>
-        prev.map((grade) =>
-          grade.id === selectedGrade.id ? selectedGrade : grade
-        )
-      );
-    } else {
-      setGrades((prev) => [
-        ...prev,
-        { id: (prev.length + 1).toString(), ...selectedGrade },
-      ]);
-    }
+  const loadData = async () => {
+    try {
+      console.log('Iniciando carga de datos...');
+      
+      // Cargar estudiantes y materias
+      const studentsData = await studentServices.getAll();
+      console.log('Estudiantes cargados:', studentsData);
+      setStudents(studentsData);
 
-    setSelectedGrade({ student: '', subject: '', absences: '', grade: '' });
-    setModalVisible(false);
+      const subjectsData = await subjectServices.getAll();
+      console.log('Materias cargadas:', subjectsData);
+      setSubjects(subjectsData);
+
+      // Cargar calificaciones si hay un alumno seleccionado
+      if (selectedStudent) {
+        const gradesData = await gradeServices.getAll(selectedStudent);
+        console.log('Calificaciones cargadas:', gradesData);
+        setGrades(gradesData);
+      } else {
+        setGrades([]);
+      }
+    } catch (error) {
+      console.error('Error cargando datos:', error);
+      Alert.alert('Error', 'No se pudieron cargar los datos');
+    }
+  };
+
+  const getStudentName = (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    return student ? `${student.nombre} ${student.apellido}` : 'Desconocido';
+  };
+
+  const getSubjectName = (subjectId: string) => {
+    const subject = subjects.find(s => s.id === subjectId);
+    return subject ? subject.nombre : 'Desconocido';
+  };
+
+  const handleSaveGrade = async () => {
+    try {
+      if (!selectedGrade.alumno_id || !selectedGrade.materia_id) {
+        Alert.alert('Error', 'Por favor completa todos los campos');
+        return;
+      }
+
+      if (editMode && selectedGrade.id) {
+        await gradeServices.update(selectedGrade.id, selectedGrade);
+      } else {
+        await gradeServices.create(selectedGrade);
+      }
+      
+      loadData();
+      setModalVisible(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error guardando calificación:', error);
+      Alert.alert('Error', 'No se pudo guardar la calificación');
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedGrade({
+      alumno_id: '',
+      materia_id: '',
+      calificacion: 0,
+    });
     setEditMode(false);
   };
 
   return (
     <View style={tw`flex-1 bg-gray-100 px-5`}>
       <GlobalActionButton navigation={navigation} />
+      
       {/* Header */}
       <View style={tw`flex-row items-center mb-6 mt-4`}>
         <Image
@@ -84,39 +116,68 @@ const GradesScreen = ({ navigation }: { navigation: NavigationProp<any> }) => {
         <Text style={tw`text-xl font-bold`}>Captura de calificaciones</Text>
       </View>
 
-      {/* Tabla de Calificaciones */}
-      <View style={tw`bg-gray-200 rounded-lg p-4 shadow-md`}>
-        <FlatList
-          data={grades}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View
-              style={tw`flex-row items-center justify-between bg-gray-100 rounded-lg p-3 mb-2`}
-            >
-              <Text style={tw`text-base`}>
-                {`${item.subject} - ${item.absences}F - ${item.grade}`}
-              </Text>
-              <TouchableOpacity
-                style={tw`bg-blue-700 rounded-lg px-3 py-1`}
-                onPress={() => {
-                  setSelectedGrade(item);
-                  setEditMode(true);
-                  setModalVisible(true);
-                }}
-              >
-                <Text style={tw`text-white font-bold`}>Editar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        />
+      {/* Selector de Alumno */}
+      <View style={tw`bg-white rounded-lg p-4 mb-4 shadow-md`}>
+        <Text style={tw`text-lg mb-2`}>Selecciona un alumno:</Text>
+        <View style={tw`border border-gray-300 rounded-lg`}>
+          <Picker
+            selectedValue={selectedStudent}
+            onValueChange={(value) => {
+              setSelectedStudent(value);
+              loadData();
+            }}
+          >
+            <Picker.Item label="Seleccione un alumno" value="" />
+            {students.map((student) => (
+              <Picker.Item
+                key={student.id}
+                label={`${student.nombre} ${student.apellido}`}
+                value={student.id}
+              />
+            ))}
+          </Picker>
+        </View>
       </View>
+
+      {/* Tabla de Calificaciones */}
+      {selectedStudent ? (
+        <View style={tw`bg-gray-200 rounded-lg p-4 shadow-md`}>
+          <FlatList
+            data={grades}
+            keyExtractor={(item) => item.id || ''}
+            renderItem={({ item }) => (
+              <View style={tw`flex-row items-center justify-between bg-gray-100 rounded-lg p-3 mb-2`}>
+                <View>
+                  <Text style={tw`text-base font-bold`}>{getStudentName(item.alumno_id)}</Text>
+                  <Text style={tw`text-sm text-gray-600`}>
+                    {getSubjectName(item.materia_id)} - Calif: {item.calificacion}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={tw`bg-blue-700 rounded-lg px-3 py-1`}
+                  onPress={() => {
+                    setSelectedGrade(item);
+                    setEditMode(true);
+                    setModalVisible(true);
+                  }}
+                >
+                  <Text style={tw`text-white font-bold`}>Editar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+        </View>
+      ) : (
+        <Text style={tw`text-center text-lg mt-4`}>
+          Por favor, selecciona un alumno antes de mostrar sus calificaciones
+        </Text>
+      )}
 
       {/* Botón para registrar calificaciones */}
       <TouchableOpacity
         style={tw`mt-6 bg-blue-700 rounded-lg p-3 shadow-md self-center`}
         onPress={() => {
-          setSelectedGrade({ student: '', subject: '', absences: '', grade: '' });
-          setEditMode(false);
+          resetForm();
           setModalVisible(true);
         }}
       >
@@ -135,54 +196,76 @@ const GradesScreen = ({ navigation }: { navigation: NavigationProp<any> }) => {
             <Text style={tw`text-xl font-bold mb-4`}>
               {editMode ? 'Editar Calificación' : 'Registrar Calificación'}
             </Text>
+
             <Text style={tw`text-lg mb-2`}>Alumno</Text>
-            <TextInput
-              placeholder="Nombre del alumno"
-              style={tw`border border-gray-300 rounded-md p-2 mb-4`}
-              value={selectedGrade.student}
-              onChangeText={(text) =>
-                setSelectedGrade((prev: any) => ({ ...prev, student: text }))
-              }
-            />
+            <View style={tw`border border-gray-300 rounded-lg mb-4`}>
+              <Picker
+                selectedValue={selectedGrade.alumno_id}
+                onValueChange={(value) => {
+                  console.log('Alumno seleccionado:', value);
+                  setSelectedGrade(prev => ({...prev, alumno_id: value}))
+                }}
+              >
+                <Picker.Item label="Seleccione un alumno" value="" />
+                {Array.isArray(students) && students.length > 0 ? (
+                  students.map((student) => (
+                    <Picker.Item
+                      key={student.id}
+                      label={`${student.nombre} ${student.apellido}`}
+                      value={student.id}
+                    />
+                  ))
+                ) : (
+                  <Picker.Item label="No hay alumnos disponibles" value="" />
+                )}
+              </Picker>
+            </View>
+
             <Text style={tw`text-lg mb-2`}>Materia</Text>
-            <TextInput
-              placeholder="Nombre de la materia"
-              style={tw`border border-gray-300 rounded-md p-2 mb-4`}
-              value={selectedGrade.subject}
-              onChangeText={(text) =>
-                setSelectedGrade((prev: any) => ({ ...prev, subject: text }))
-              }
-            />
-            <Text style={tw`text-lg mb-2`}>Faltas</Text>
-            <TextInput
-              placeholder="Número de faltas"
-              style={tw`border border-gray-300 rounded-md p-2 mb-4`}
-              keyboardType="numeric"
-              value={selectedGrade.absences.toString()}
-              onChangeText={(text) =>
-                setSelectedGrade((prev: any) => ({
-                  ...prev,
-                  absences: parseInt(text, 10) || '',
-                }))
-              }
-            />
+            <View style={tw`border border-gray-300 rounded-lg mb-4`}>
+              <Picker
+                selectedValue={selectedGrade.materia_id}
+                onValueChange={(value) => {
+                  console.log('Materia seleccionada:', value);
+                  setSelectedGrade(prev => ({...prev, materia_id: value}))
+                }}
+              >
+                <Picker.Item label="Seleccione una materia" value="" />
+                {Array.isArray(subjects) && subjects.length > 0 ? (
+                  subjects.map((subject) => (
+                    <Picker.Item
+                      key={subject.id}
+                      label={subject.nombre}
+                      value={subject.id}
+                    />
+                  ))
+                ) : (
+                  <Picker.Item label="No hay materias disponibles" value="" />
+                )}
+              </Picker>
+            </View>
+
+
             <Text style={tw`text-lg mb-2`}>Calificación</Text>
             <TextInput
-              placeholder="Calificación"
               style={tw`border border-gray-300 rounded-md p-2 mb-4`}
               keyboardType="numeric"
-              value={selectedGrade.grade.toString()}
+              value={selectedGrade.calificacion.toString()}
               onChangeText={(text) =>
-                setSelectedGrade((prev: any) => ({
-                  ...prev,
-                  grade: parseInt(text, 10) || '',
-                }))
+                setSelectedGrade(prev => ({...prev, calificacion: parseInt(text) || 0}))
               }
             />
+
+            <Text style={tw`text-lg mb-2`}>Faltas</Text>
+            
+
             <View style={tw`flex-row justify-between`}>
               <TouchableOpacity
                 style={tw`bg-red-500 rounded-lg px-4 py-2`}
-                onPress={() => setModalVisible(false)}
+                onPress={() => {
+                  setModalVisible(false);
+                  resetForm();
+                }}
               >
                 <Text style={tw`text-white font-bold`}>Cancelar</Text>
               </TouchableOpacity>
@@ -200,6 +283,4 @@ const GradesScreen = ({ navigation }: { navigation: NavigationProp<any> }) => {
       </Modal>
     </View>
   );
-};
-
-export default GradesScreen;
+}

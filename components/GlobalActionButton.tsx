@@ -3,6 +3,7 @@ import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import tw from 'twrnc';
 import { Icon } from '@rneui/themed';
+import { authServices } from '../app/services/authServices';
 
 const GlobalActionButton = ({ navigation }: { navigation: NavigationProp<any> }) => {
     const [menuVisible, setMenuVisible] = useState(false);
@@ -50,7 +51,8 @@ const GlobalActionButton = ({ navigation }: { navigation: NavigationProp<any> })
                         {/* Botón para cerrar sesión */}
                         <TouchableOpacity
                             style={tw`flex-row items-center mt-4`}
-                            onPress={() => {
+                            onPress={async () => {
+                                await authServices.logout();
                                 toggleMenu();
                                 navigation.navigate('Login');
                             }}

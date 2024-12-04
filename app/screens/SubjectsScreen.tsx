@@ -1,56 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   FlatList,
+  TouchableOpacity,
   Modal,
   TextInput,
   Alert,
-  Image,
+  Image
 } from 'react-native';
-import tw from 'twrnc';
+import { subjectServices } from '../services/api';
+import { Subject } from '../types';
 import GlobalActionButton from '../../components/GlobalActionButton';
 import { NavigationProp } from '@react-navigation/native';
+import tw from 'twrnc';
 
-const SubjectsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => {
-  const [subjects, setSubjects] = useState([
-    { id: '1', code: 'ISSC712', name: 'Minería de Datos', professor: 'Dr. José Pérez' },
-    { id: '2', code: 'ISSC711', name: 'Desarrollo Colaborativo', professor: 'Ing. Ana Gómez' },
-    { id: '3', code: 'ISSC710', name: 'Desarrollo Sustentable', professor: 'Mtro. Carlos Ruiz' },
-  ]);
-
+export default function SubjectsScreen({ navigation }: { navigation: NavigationProp<any> }) {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState<any>({
-    code: '',
-    name: '',
-    professor: '',
+  const [selectedSubject, setSelectedSubject] = useState<Subject>({
+    codigo: '',
+    nombre: '',
+    creditos: 0,
   });
 
-  const handleSaveSubject = () => {
-    const { code, name, professor } = selectedSubject;
+  useEffect(() => {
+    loadSubjects();
+  }, []);
 
-    if (!code || !name || !professor) {
-      Alert.alert('Error', 'Por favor completa todos los campos.');
-      return;
+  const loadSubjects = async () => {
+    try {
+      const data = await subjectServices.getAll();
+      setSubjects(data);
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+      Alert.alert('Error', 'No se pudieron cargar las materias');
     }
+  };
 
-    if (editMode) {
-      setSubjects((prev) =>
-        prev.map((subject) =>
-          subject.id === selectedSubject.id ? selectedSubject : subject
-        )
-      );
-    } else {
-      setSubjects((prev) => [
-        ...prev,
-        { id: (prev.length + 1).toString(), ...selectedSubject },
-      ]);
+  const handleSaveSubject = async () => {
+    try {
+      if (!selectedSubject.codigo || !selectedSubject.nombre) {
+        Alert.alert('Error', 'Por favor completa todos los campos.');
+        return;
+      }
+
+      if (editMode && selectedSubject.id) {
+        await subjectServices.update(selectedSubject.id, selectedSubject);
+      } else {
+        await subjectServices.create(selectedSubject);
+      }
+      loadSubjects();
+      setModalVisible(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error saving subject:', error);
+      Alert.alert('Error', 'No se pudo guardar la materia');
     }
+  };
 
-    setSelectedSubject({ code: '', name: '', professor: '' });
-    setModalVisible(false);
+  const handleDeleteSubject = async (id: string) => {
+    try {
+      await subjectServices.delete(id);
+      loadSubjects();
+    } catch (error) {
+      console.error('Error deleting subject:', error);
+      Alert.alert('Error', 'No se pudo eliminar la materia');
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedSubject({
+      codigo: '',
+      nombre: '',
+      creditos: 0,
+    });
     setEditMode(false);
   };
 
@@ -58,7 +83,6 @@ const SubjectsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => 
     <View style={tw`flex-1 bg-gray-100 px-5`}>
       <GlobalActionButton navigation={navigation} />
 
-      {/* Header */}
       <View style={tw`flex-row items-center mb-6 mt-4`}>
         <Image
           source={require('../../assets/image1.png')}
@@ -68,16 +92,13 @@ const SubjectsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => 
         <Text style={tw`text-xl font-bold`}>Materias registradas</Text>
       </View>
 
-      {/* Tabla de Materias */}
       <View style={tw`bg-gray-200 rounded-lg p-4 shadow-md`}>
         <FlatList
           data={subjects}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id || ''}
           renderItem={({ item }) => (
-            <View
-              style={tw`flex-row items-center justify-between bg-gray-100 rounded-lg p-3 mb-2`}
-            >
-              <Text style={tw`text-base`}>{`${item.code} - ${item.name}`}</Text>
+            <View style={tw`flex-row items-center justify-between bg-gray-100 rounded-lg p-3 mb-2`}>
+              <Text style={tw`text-base`}>{`${item.codigo} - ${item.nombre}`}</Text>
               <View style={tw`flex-row`}>
                 <TouchableOpacity
                   style={tw`bg-blue-700 rounded-lg px-4 py-1 mr-2`}
@@ -91,11 +112,7 @@ const SubjectsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => 
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={tw`bg-red-700 rounded-lg px-3 py-1`}
-                  onPress={() =>
-                    setSubjects((prev) =>
-                      prev.filter((subject) => subject.id !== item.id)
-                    )
-                  }
+                  onPress={() => handleDeleteSubject(item.id!)}
                 >
                   <Text style={tw`text-white font-bold`}>Eliminar</Text>
                 </TouchableOpacity>
@@ -105,19 +122,16 @@ const SubjectsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => 
         />
       </View>
 
-      {/* Botón para añadir materias */}
       <TouchableOpacity
         style={tw`mt-6 bg-blue-700 rounded-lg p-3 shadow-md self-center`}
         onPress={() => {
-          setSelectedSubject({ code: '', name: '', professor: '' });
-          setEditMode(false);
+          resetForm();
           setModalVisible(true);
         }}
       >
         <Text style={tw`text-white font-bold`}>Añadir materia</Text>
       </TouchableOpacity>
 
-      {/* Modal para añadir/editar materias */}
       <Modal
         visible={modalVisible}
         animationType="slide"
@@ -133,33 +147,37 @@ const SubjectsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => 
             <TextInput
               placeholder="Código de la materia"
               style={tw`border border-gray-300 rounded-md p-2 mb-4`}
-              value={selectedSubject?.code || ''}
+              value={selectedSubject.codigo}
               onChangeText={(text) =>
-                setSelectedSubject((prev: any) => ({ ...prev, code: text }))
+                setSelectedSubject((prev) => ({ ...prev, codigo: text }))
               }
             />
             <Text style={tw`text-xl mb-2`}>Nombre de la Materia</Text>
             <TextInput
               placeholder="Nombre de la materia"
               style={tw`border border-gray-300 rounded-md p-2 mb-4`}
-              value={selectedSubject?.name || ''}
+              value={selectedSubject.nombre}
               onChangeText={(text) =>
-                setSelectedSubject((prev: any) => ({ ...prev, name: text }))
+                setSelectedSubject((prev) => ({ ...prev, nombre: text }))
               }
             />
-            <Text style={tw`text-xl mb-2`}>Profesor</Text>
+            <Text style={tw`text-xl mb-2`}>Créditos</Text>
             <TextInput
-              placeholder="Profesor"
+              placeholder="Créditos"
               style={tw`border border-gray-300 rounded-md p-2 mb-4`}
-              value={selectedSubject?.professor || ''}
+              keyboardType="numeric"
+              value={selectedSubject.creditos.toString()}
               onChangeText={(text) =>
-                setSelectedSubject((prev: any) => ({ ...prev, professor: text }))
+                setSelectedSubject((prev) => ({ ...prev, creditos: parseInt(text) || 0 }))
               }
             />
             <View style={tw`flex-row justify-between`}>
               <TouchableOpacity
                 style={tw`bg-red-500 rounded-lg px-4 py-2`}
-                onPress={() => setModalVisible(false)}
+                onPress={() => {
+                  setModalVisible(false);
+                  resetForm();
+                }}
               >
                 <Text style={tw`text-white font-bold`}>Cancelar</Text>
               </TouchableOpacity>
@@ -177,6 +195,4 @@ const SubjectsScreen = ({ navigation }: { navigation: NavigationProp<any> }) => 
       </Modal>
     </View>
   );
-};
-
-export default SubjectsScreen;
+}
