@@ -109,9 +109,23 @@ export const subjectServices = {
 
 // Servicios para Calificaciones
 export const gradeServices = {
-  getAll: async (alumno_id: string): Promise<Grade[]> => {
-    const response = await fetch(`${API_URL}/calificaciones/alumnos/${alumno_id}`);
-    return handleResponse(response);
+  getAll: async (): Promise<Grade[]> => {
+    const response = await fetch(`${API_URL}/calificaciones`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || 'Error al obtener las calificaciones');
+    }
+
+    const data = await response.json();
+    console.log('Calificaciones recibidas:', data);
+    return Array.isArray(data) ? data : [];
   },
 
   create: async (grade: Grade): Promise<Grade> => {

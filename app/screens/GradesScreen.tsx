@@ -21,7 +21,6 @@ export default function GradesScreen({ navigation }: { navigation: NavigationPro
   const [grades, setGrades] = useState<Grade[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [selectedGrade, setSelectedGrade] = useState<Grade>({
@@ -32,29 +31,26 @@ export default function GradesScreen({ navigation }: { navigation: NavigationPro
 
   useEffect(() => {
     loadData();
-  }, [selectedStudent]);
+  }, []);
 
   const loadData = async () => {
     try {
       console.log('Iniciando carga de datos...');
       
-      // Cargar estudiantes y materias
-      const studentsData = await studentServices.getAll();
+      const [studentsData, subjectsData, gradesData] = await Promise.all([
+        studentServices.getAll(),
+        subjectServices.getAll(),
+        gradeServices.getAll()
+      ]);
+
       console.log('Estudiantes cargados:', studentsData);
-      setStudents(studentsData);
-
-      const subjectsData = await subjectServices.getAll();
       console.log('Materias cargadas:', subjectsData);
-      setSubjects(subjectsData);
+      console.log('Calificaciones cargadas:', gradesData);
 
-      // Cargar calificaciones si hay un alumno seleccionado
-      if (selectedStudent) {
-        const gradesData = await gradeServices.getAll(selectedStudent);
-        console.log('Calificaciones cargadas:', gradesData);
-        setGrades(gradesData);
-      } else {
-        setGrades([]);
-      }
+      setStudents(studentsData);
+      setSubjects(subjectsData);
+      setGrades(gradesData);
+      
     } catch (error) {
       console.error('Error cargando datos:', error);
       Alert.alert('Error', 'No se pudieron cargar los datos');
@@ -116,62 +112,33 @@ export default function GradesScreen({ navigation }: { navigation: NavigationPro
         <Text style={tw`text-xl font-bold`}>Captura de calificaciones</Text>
       </View>
 
-      {/* Selector de Alumno */}
-      <View style={tw`bg-white rounded-lg p-4 mb-4 shadow-md`}>
-        <Text style={tw`text-lg mb-2`}>Selecciona un alumno:</Text>
-        <View style={tw`border border-gray-300 rounded-lg`}>
-          <Picker
-            selectedValue={selectedStudent}
-            onValueChange={(value) => {
-              setSelectedStudent(value);
-              loadData();
-            }}
-          >
-            <Picker.Item label="Seleccione un alumno" value="" />
-            {students.map((student) => (
-              <Picker.Item
-                key={student.id}
-                label={`${student.nombre} ${student.apellido}`}
-                value={student.id}
-              />
-            ))}
-          </Picker>
-        </View>
-      </View>
-
       {/* Tabla de Calificaciones */}
-      {selectedStudent ? (
-        <View style={tw`bg-gray-200 rounded-lg p-4 shadow-md`}>
-          <FlatList
-            data={grades}
-            keyExtractor={(item) => item.id || ''}
-            renderItem={({ item }) => (
-              <View style={tw`flex-row items-center justify-between bg-gray-100 rounded-lg p-3 mb-2`}>
-                <View>
-                  <Text style={tw`text-base font-bold`}>{getStudentName(item.alumno_id)}</Text>
-                  <Text style={tw`text-sm text-gray-600`}>
-                    {getSubjectName(item.materia_id)} - Calif: {item.calificacion}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={tw`bg-blue-700 rounded-lg px-3 py-1`}
-                  onPress={() => {
-                    setSelectedGrade(item);
-                    setEditMode(true);
-                    setModalVisible(true);
-                  }}
-                >
-                  <Text style={tw`text-white font-bold`}>Editar</Text>
-                </TouchableOpacity>
+      <View style={tw`bg-gray-200 rounded-lg p-4 shadow-md`}>
+        <FlatList
+          data={grades}
+          keyExtractor={(item) => item.id || ''}
+          renderItem={({ item }) => (
+            <View style={tw`flex-row items-center justify-between bg-gray-100 rounded-lg p-3 mb-2`}>
+              <View>
+                <Text style={tw`text-base font-bold`}>{getStudentName(item.alumno_id)}</Text>
+                <Text style={tw`text-sm text-gray-600`}>
+                  {getSubjectName(item.materia_id)} - Calif: {item.calificacion}
+                </Text>
               </View>
-            )}
-          />
-        </View>
-      ) : (
-        <Text style={tw`text-center text-lg mt-4`}>
-          Por favor, selecciona un alumno antes de mostrar sus calificaciones
-        </Text>
-      )}
+              <TouchableOpacity
+                style={tw`bg-blue-700 rounded-lg px-3 py-1`}
+                onPress={() => {
+                  setSelectedGrade(item);
+                  setEditMode(true);
+                  setModalVisible(true);
+                }}
+              >
+                <Text style={tw`text-white font-bold`}>Editar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        />
+      </View>
 
       {/* Botón para registrar calificaciones */}
       <TouchableOpacity
